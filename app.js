@@ -2,10 +2,11 @@
 // Christmas Fest Online Game - Main Application
 // ==========================================
 
+import { firestore } from './firebase.js';
+import { doc, setDoc, onSnapshot, runTransaction, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
 // Game Configuration
 const CONFIG = {
-    ADMIN_PASSCODE: 'Manoj@orgteam',
-
     LEVEL1_ROUNDS: 12,
     LEVEL1_ROUND_TIME: 15,
     LEVEL1_RESULTS_TIME: 5,
@@ -117,7 +118,6 @@ let localState = {
 const elements = {};
 
 // Timers
-let syncInterval = null;
 let roundTimer = null;
 let minigameTimer = null;
 let luckMeterAnimator = null;
@@ -131,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeSnow();
     loadSharedState();
     initializeEventListeners();
-    startSyncLoop();
 });
 
 function cacheElements() {
@@ -284,28 +283,31 @@ function initializeSnow() {
 // ==========================================
 
 function loadSharedState() {
-    const saved = localStorage.getItem('christmasGameShared');
-    if (saved) {
-        try {
-            const parsed = JSON.parse(saved);
-            sharedState = { ...sharedState, ...parsed };
-        } catch (e) {
-            console.error('Failed to parse shared state');
+    const gameRef = doc(firestore, "game", "sharedState");
+    onSnapshot(gameRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const remoteState = docSnap.data();
+            // Overwrite local state with remote state
+            Object.assign(sharedState, remoteState);
+        } else {
+            // No document yet, save initial state
+            saveSharedState();
         }
+        syncUI();
+    });
+}
+
+async function saveSharedState() {
+    try {
+        const gameRef = doc(firestore, "game", "sharedState");
+        // We need to convert the state to a plain object for Firestore
+        await setDoc(gameRef, JSON.parse(JSON.stringify(sharedState)));
+    } catch (e) {
+        console.error("Failed to save shared state:", e);
     }
 }
 
-function saveSharedState() {
-    localStorage.setItem('christmasGameShared', JSON.stringify(sharedState));
-}
 
-function startSyncLoop() {
-    clearInterval(syncInterval);
-    syncInterval = setInterval(() => {
-        loadSharedState();
-        syncUI();
-    }, CONFIG.SYNC_INTERVAL);
-}
 
 function syncUI() {
     elements.playerCount.textContent = sharedState.players.length;
@@ -375,7 +377,7 @@ function handlePhaseChange() {
 // LOGIN & PLAYER MANAGEMENT
 // ==========================================
 
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
 
     const name = elements.playerNameInput.value.trim();
@@ -386,15 +388,21 @@ function handleLogin(e) {
         return;
     }
 
-    if (passcode === CONFIG.ADMIN_PASSCODE) {
-        localState.isAdmin = true;
-        localState.playerName = 'Admin';
-        showScreen('admin');
-        updateAdminUI();
-        return;
-    }
+    try {
+        const adminConfigRef = doc(firestore, "config", "admin");
+        const adminConfigSnap = await getDoc(adminConfigRef);
 
-    loadSharedState();
+        if (adminConfigSnap.exists() && passcode === adminConfigSnap.data().passcode) {
+            localState.isAdmin = true;
+            localState.playerName = 'Admin';
+            showScreen('admin');
+            updateAdminUI();
+            return;
+        }
+    } catch (error) {
+        console.error("Error checking admin passcode:", error);
+        // Do not block player login if admin check fails, just log it.
+    }
 
     // Explicitly check if passcode has been set by admin
     if (!sharedState.playerPasscode) {
@@ -407,28 +415,45 @@ function handleLogin(e) {
         return;
     }
 
-    localState.playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     localState.playerName = name;
+    
+    try {
+        const gameRef = doc(firestore, "game", "sharedState");
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) {
+                throw "Game document does not exist!";
+            }
 
-    const existingPlayer = sharedState.players.find(p => p.name === name);
-    if (!existingPlayer) {
-        sharedState.players.push({
-            id: localState.playerId,
-            name: name,
-            level1Score: 0,
-            level2Score: 0,
-            isQualified: false,
-            status: 'waiting'
+            const data = gameDoc.data();
+            const existingPlayer = data.players.find(p => p.name === name);
+
+            if (!existingPlayer) {
+                const newPlayerId = 'player_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                localState.playerId = newPlayerId;
+                const newPlayer = {
+                    id: newPlayerId,
+                    name: name,
+                    level1Score: 0,
+                    level2Score: 0,
+                    isQualified: false,
+                    status: 'waiting'
+                };
+                const newPlayers = [...data.players, newPlayer];
+                transaction.update(gameRef, { players: newPlayers });
+            } else {
+                localState.playerId = existingPlayer.id;
+                localState.level1Score = existingPlayer.level1Score;
+                localState.level2Score = existingPlayer.level2Score;
+            }
         });
-        saveSharedState();
-    } else {
-        localState.playerId = existingPlayer.id;
-        localState.level1Score = existingPlayer.level1Score;
-        localState.level2Score = existingPlayer.level2Score;
-    }
 
-    elements.lobbyPlayerName.textContent = name;
-    showScreen('lobby');
+        elements.lobbyPlayerName.textContent = name;
+        showScreen('lobby');
+    } catch (error) {
+        console.error("Failed to login player:", error);
+        alert("Could not join the game. Please try again. " + error);
+    }
 }
 
 function showScreen(screenName) {
@@ -1163,25 +1188,47 @@ function addToHistory(outcome) {
     localState.roundHistory.push(outcome);
 }
 
-function submitRoundResult(result) {
+async function submitRoundResult(result) {
     localState.currentRoundResult = result;
 
-    const player = sharedState.players.find(p => p.id === localState.playerId);
-    if (player) {
-        player.level1Score = localState.level1Score;
-    }
+    try {
+        const gameRef = doc(firestore, "game", "sharedState");
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) {
+                throw "Game document does not exist!";
+            }
 
-    // Check if already submitted this round
-    const alreadySubmitted = sharedState.roundResults.find(r => r.playerId === localState.playerId);
-    if (!alreadySubmitted) {
-        sharedState.roundResults.push({
-            playerId: localState.playerId,
-            playerName: localState.playerName,
-            ...result
+            const data = gameDoc.data();
+            
+            // Update player score
+            const newPlayers = data.players.map(p => {
+                if (p.id === localState.playerId) {
+                    return { ...p, level1Score: localState.level1Score };
+                }
+                return p;
+            });
+
+            // Add round result, preventing duplicates
+            const newRoundResults = [...data.roundResults];
+            const alreadySubmitted = newRoundResults.find(r => r.playerId === localState.playerId);
+            if (!alreadySubmitted) {
+                newRoundResults.push({
+                    playerId: localState.playerId,
+                    playerName: localState.playerName,
+                    ...result
+                });
+            }
+
+            transaction.update(gameRef, { 
+                players: newPlayers, 
+                roundResults: newRoundResults 
+            });
         });
+    } catch (error) {
+        console.error("Failed to submit round result:", error);
+        alert("Could not submit your result. Please check your connection.");
     }
-
-    saveSharedState();
 }
 
 // ==========================================
@@ -1688,26 +1735,51 @@ function endLevel2Round(allPairsFound) {
     }, 1000);
 }
 
-function submitLevel2RoundResult() {
-    const player = sharedState.players.find(p => p.id === localState.playerId);
-    if (player) {
-        player.level2Score = localState.level2Score;
-        player.level2Time = localState.level2TotalTime; // Store total time for tiebreaker
-    }
+async function submitLevel2RoundResult() {
+    try {
+        const gameRef = doc(firestore, "game", "sharedState");
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) {
+                throw "Game document does not exist!";
+            }
 
-    // Add to round results
-    const alreadySubmitted = sharedState.roundResults.find(r => r.playerId === localState.playerId);
-    if (!alreadySubmitted) {
-        sharedState.roundResults.push({
-            playerId: localState.playerId,
-            playerName: localState.playerName,
-            emoji: localState.pairsFound === localState.totalPairs ? '🌟' : '🧠',
-            text: `${localState.pairsFound}/${localState.totalPairs} (${localState.roundTimeTaken.toFixed(1)}s)`,
-            points: localState.roundScore
+            const data = gameDoc.data();
+
+            // Update player's level 2 score and total time
+            const newPlayers = data.players.map(p => {
+                if (p.id === localState.playerId) {
+                    return { 
+                        ...p, 
+                        level2Score: localState.level2Score,
+                        level2Time: localState.level2TotalTime // Store total time for tiebreaker
+                    };
+                }
+                return p;
+            });
+
+            // Add to round results, preventing duplicates
+            const newRoundResults = [...data.roundResults];
+            const alreadySubmitted = newRoundResults.find(r => r.playerId === localState.playerId);
+            if (!alreadySubmitted) {
+                newRoundResults.push({
+                    playerId: localState.playerId,
+                    playerName: localState.playerName,
+                    emoji: localState.pairsFound === localState.totalPairs ? '🌟' : '🧠',
+                    text: `${localState.pairsFound}/${localState.totalPairs} (${localState.roundTimeTaken.toFixed(1)}s)`,
+                    points: localState.roundScore
+                });
+            }
+            
+            transaction.update(gameRef, { 
+                players: newPlayers, 
+                roundResults: newRoundResults 
+            });
         });
+    } catch (error) {
+        console.error("Failed to submit Level 2 result:", error);
+        alert("Could not submit your result. Please check your connection.");
     }
-
-    saveSharedState();
 }
 
 
@@ -1812,7 +1884,6 @@ function triggerConfetti() {
 // ==========================================
 
 function resetGame() {
-    clearInterval(syncInterval);
     clearInterval(roundTimer);
     clearInterval(minigameTimer);
     clearInterval(luckMeterAnimator);
@@ -1866,6 +1937,4 @@ function resetGame() {
     } else {
         showScreen('login');
     }
-
-    startSyncLoop();
 }
