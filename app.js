@@ -552,10 +552,8 @@ function updateAdminUI() {
     elements.adminEndLevel1Btn.disabled = phase !== 'level1' || roundActive;
     elements.adminStartLevel2Btn.disabled = phase !== 'intermission';
 
-    // Show Final Results: Enable when all Level 2 rounds are complete
-    const level2AllRoundsComplete = phase === 'level2' && sharedState.currentRound >= CONFIG.LEVEL2_ROUNDS;
-    const level2RoundComplete = sharedState.roundResults.length >= sharedState.players.length && sharedState.players.length > 0;
-    elements.adminResultsBtn.disabled = !(phase === 'level2' && level2AllRoundsComplete && (level2RoundComplete || !roundActive));
+    // Show Final Results: Enable when in level 2 and a round is not active/paused.
+    elements.adminResultsBtn.disabled = phase !== 'level2' || roundActive || isPaused;
 
     renderAdminLeaderboard();
     renderAdminRoundResults();
