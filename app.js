@@ -432,6 +432,12 @@ async function handleLogin(e) {
         return;
     }
 
+    // NEW RULE: Do not allow users to join a running game
+    if (sharedState.gamePhase !== 'lobby') {
+        alert('The game has already started. You cannot join at this time.');
+        return;
+    }
+
     localState.playerName = name;
 
     try {
