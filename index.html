@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Christmas Fest Online Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Snow Animation Container -->
+    <div class="snow-container" id="snowContainer"></div>
+
+    <!-- Main App Container -->
+    <div class="app-container">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen active">
+            <div class="login-card">
+                <h1 class="game-title">Christmas Fest</h1>
+                <p class="game-subtitle">Virtual Team Celebration Game</p>
+
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label for="playerName">Your Name</label>
+                        <input type="text" id="playerName" placeholder="Enter your display name" required maxlength="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="passcode">Passcode</label>
+                        <input type="text" id="passcode" placeholder="Enter 6-digit passcode" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <span>Join Game</span>
+                    </button>
+                </form>
+                <p class="login-hint">Get the passcode from your host!</p>
+            </div>
+        </div>
+
+        <!-- Player Waiting Lobby (Before Game Starts) -->
+        <div id="lobbyScreen" class="screen">
+            <div class="lobby-card">
+                <h2>Welcome, <span id="lobbyPlayerName"></span>!</h2>
+                <div class="waiting-animation">
+                    <div class="gift-bounce">🎁</div>
+                </div>
+                <p class="waiting-text">Waiting for the host to start the game...</p>
+                <p class="player-count">Players joined: <span id="playerCount">1</span></p>
+            </div>
+        </div>
+
+        <!-- Level 1: Gift Unwrap Game -->
+        <div id="level1Screen" class="screen">
+            <div class="game-header">
+                <div class="score-display">
+                    <span class="score-label">Score</span>
+                    <span class="score-value" id="level1Score">0</span>
+                </div>
+                <div class="round-display">
+                    <span>Round</span>
+                    <span id="currentRound">1</span>
+                    <span>/12</span>
+                </div>
+                <div class="timer-display" id="timerDisplay">
+                    <div class="timer-bar" id="timerBar"></div>
+                    <span class="timer-text" id="timerText">15</span>
+                </div>
+            </div>
+
+            <div class="game-content-wrapper">
+                <!-- Left Info Panel -->
+                <div class="left-column">
+                    <div class="info-panel" id="level1InfoPane">
+                        <h3>🎁 Gift Guide</h3>
+                        <div class="info-content" id="level1InfoContent">
+                            <!-- Content will be populated by JS -->
+                        </div>
+                    </div>
+                    <!-- Live Leaderboard Panel -->
+                    <div class="live-leaderboard-panel" id="level1LeaderboardPanel">
+                        <h3>🏆 Live Standings</h3>
+                        <div class="live-leaderboard" id="level1Leaderboard">
+                            <p class="no-players">Waiting for players...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="game-main-area">
+                    <!-- Waiting for Round to Start -->
+                    <div class="round-waiting" id="level1RoundWaiting">
+                        <div class="waiting-content">
+                            <div class="pulse-ring"></div>
+                            <h3>Round <span id="waitingRoundNum">1</span></h3>
+                            <p>Waiting for host to begin...</p>
+                            <div class="waiting-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Game Area with 3 Boxes -->
+                    <div class="game-area" id="level1GameArea" style="display: none;">
+                        <p class="instruction-text">Choose a box to unwrap or pass this round!</p>
+
+                        <div class="boxes-container" id="boxesContainer">
+                            <!-- 3 Gift boxes will be generated here -->
+                        </div>
+
+                        <div class="action-buttons" id="actionButtons">
+                            <button class="btn btn-pass" id="passBtn">
+                                <span class="btn-emoji">⏭️</span>
+                                <span>PASS</span>
+                            </button>
+                        </div>
+
+                        <div class="frozen-overlay" id="frozenOverlay">
+                            <div class="frozen-content">
+                                <span class="frozen-emoji">🧊</span>
+                                <span>FROZEN! Skipping this round...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Round Results Display -->
+                    <div class="round-results" id="level1RoundResults" style="display: none;">
+                        <h3>Round <span id="resultsRoundNum">1</span> Results</h3>
+                        <div class="your-result" id="yourResult">
+                            <span class="result-emoji" id="yourResultEmoji"></span>
+                            <span class="result-text" id="yourResultText"></span>
+                            <span class="result-points" id="yourResultPoints"></span>
+                        </div>
+                        <div class="all-players-results" id="allPlayersResults">
+                            <!-- Player results will be populated here -->
+                        </div>
+                        <p class="next-round-text">Next round starting soon...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="history-panel" id="historyPanel">
+                <h3>Your History</h3>
+                <div class="history-list" id="historyList"></div>
+            </div>
+        </div>
+
+        <!-- Intermission Leaderboard -->
+        <div id="intermissionScreen" class="screen">
+            <div class="leaderboard-container">
+                <h2>Level 1 Complete!</h2>
+                <p class="qualification-message" id="qualificationMessage"></p>
+                <div class="leaderboard" id="intermissionLeaderboard"></div>
+                <p class="waiting-text" id="intermissionWaiting">Waiting for host to start Level 2...</p>
+            </div>
+        </div>
+
+        <!-- Level 2: Memory Match Game -->
+        <div id="level2Screen" class="screen">
+            <div class="game-header">
+                <div class="score-display">
+                    <span class="score-label">L2 Score</span>
+                    <span class="score-value" id="level2Score">0</span>
+                </div>
+                <div class="round-display">
+                    <span>Round</span>
+                    <span id="level2CurrentRound">1</span>
+                    <span>/6</span>
+                </div>
+                <div class="game-stats-display">
+                    <span>Flips: <span id="flipsLeftHeader">10</span></span>
+                    <span>Pairs: <span id="pairsFoundHeader">0/4</span></span>
+                </div>
+                <div class="timer-display" id="level2TimerDisplay">
+                    <div class="timer-bar" id="level2TimerBar"></div>
+                    <span class="timer-text" id="level2TimerText">60</span>
+                </div>
+            </div>
+
+            <div class="game-content-wrapper">
+                <!-- Left Info Panel -->
+                <div class="left-column">
+                    <div class="info-panel" id="level2InfoPane">
+                        <h3>🧠 Memory Match</h3>
+                        <div class="info-content" id="level2InfoContent">
+                            <!-- Content will be populated by JS -->
+                        </div>
+                    </div>
+                    <!-- Live Leaderboard Panel -->
+                    <div class="live-leaderboard-panel" id="level2LeaderboardPanel">
+                        <h3>🏆 Live Standings</h3>
+                        <div class="live-leaderboard" id="level2Leaderboard">
+                            <p class="no-players">Waiting for players...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="game-main-area">
+                    <!-- Waiting for Admin to Start -->
+                    <div class="round-waiting" id="level2RoundWaiting">
+                        <div class="waiting-content">
+                            <div class="pulse-ring"></div>
+                            <h3>Memory Match</h3>
+                            <p id="level2WaitingText">Waiting for host to begin...</p>
+                            <div class="waiting-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Memory Game Area -->
+                    <div id="memoryGameContainer" class="memory-game-area" style="display: none;">
+                        <div class="memory-game-board" id="memoryGameBoard">
+                            <!-- Cards will be generated here -->
+                        </div>
+                    </div>
+
+                    <!-- Level 2 Results Display -->
+                    <div class="round-results" id="level2RoundResults" style="display: none;">
+                        <h3>Memory Match Complete!</h3>
+                        <div class="your-result">
+                            <span class="result-emoji" id="level2ResultEmoji">🧠</span>
+                            <span class="result-text" id="level2ResultText"></span>
+                            <span class="result-points" id="level2ResultPoints"></span>
+                        </div>
+                        <div class="game-stats-summary">
+                            <p>Pairs Found: <span id="finalPairs">0/4</span></p>
+                            <p>Flips Used: <span id="finalFlips">0</span></p>
+                        </div>
+                        <p class="next-round-text">Waiting for final results...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Final Results Screen -->
+        <div id="resultsScreen" class="screen">
+            <div class="results-container">
+                <h2>Final Results!</h2>
+                <div class="winner-reveal" id="winnerReveal"></div>
+                <div class="final-leaderboard" id="finalLeaderboard"></div>
+                <button id="playAgainBtn" class="btn btn-primary">
+                    Play Again
+                </button>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="adminScreen" class="screen">
+            <div class="admin-container">
+                <div class="admin-sidebar">
+                    <h2>Admin Dashboard</h2>
+
+                    <div class="admin-section">
+                        <h3>Game Status</h3>
+                        <div class="status-indicator">
+                            <span class="status-dot" id="statusDot"></span>
+                            <span id="gameStatus">Waiting for Players</span>
+                        </div>
+                        <p>Players: <span id="adminPlayerCount">0</span></p>
+                        <p>Phase: <span id="currentPhase">Lobby</span></p>
+                        <p>Round: <span id="adminCurrentRound">-</span></p>
+                    </div>
+
+                    <div class="admin-section">
+                        <h3>Passcode Settings</h3>
+                        <div class="passcode-setting">
+                            <input type="text" id="adminPasscodeInput" placeholder="Set 6-digit code" maxlength="6">
+                            <button class="btn btn-small" id="setPasscodeBtn">Set</button>
+                        </div>
+                        <p class="current-passcode">Current: <span id="currentPasscode">Not set</span></p>
+                    </div>
+
+                    <div class="admin-section">
+                        <h3>Game Controls</h3>
+                        <div class="control-buttons">
+                            <button class="btn btn-success" id="adminStartLevel1Btn">Start Level 1</button>
+                            <button class="btn btn-primary" id="adminBeginRoundBtn" disabled>Begin Round</button>
+                            <button class="btn btn-warning" id="adminPauseGameBtn" disabled>Pause Game</button>
+                            <button class="btn btn-info" id="adminResumeGameBtn" disabled>Resume Game</button>
+                            <button class="btn btn-warning" id="adminEndLevel1Btn" disabled>End Level 1</button>
+                            <button class="btn btn-info" id="adminStartLevel2Btn" disabled>Start Level 2</button>
+                            <button class="btn btn-primary" id="adminResultsBtn" disabled>Show Final Results</button>
+                            <button class="btn btn-danger" id="adminResetBtn">Reset Game</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-main">
+                    <h3>Live Leaderboard</h3>
+                    <div class="admin-leaderboard" id="adminLeaderboard">
+                        <p class="no-players">No players yet</p>
+                    </div>
+
+                    <h3>Round Results</h3>
+                    <div class="admin-round-results" id="adminRoundResults">
+                        <p class="no-results">No round played yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Score Popup (for animations) -->
+    <div class="score-popup" id="scorePopup"></div>
+
+    <!-- Confetti Container -->
+    <div class="confetti-container" id="confettiContainer"></div>
+
+    <!-- Pause Overlay -->
+    <div class="pause-overlay" id="pauseOverlay">
+        <div class="pause-content">
+            <h2>Game Paused</h2>
+            <p>Waiting for the host to resume...</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
