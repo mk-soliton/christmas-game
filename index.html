@@ -33,12 +33,11 @@
                         <label for="passcode">Passcode</label>
                         <input type="text" id="passcode" placeholder="Enter 6-digit passcode" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <span>Join Game</span>
-                    </button>
-                </form>
-                <p class="login-hint">Get the passcode from your host!</p>
-            </div>
+                                <button type="submit" id="joinGameBtn" class="btn btn-primary" disabled>
+                                    <span>Join Game</span>
+                                </button>
+                            </form>
+                            <p id="loginHint" class="login-hint">Connecting to game session...</p>            </div>
         </div>
 
         <!-- Player Waiting Lobby (Before Game Starts) -->

@@ -148,6 +148,8 @@ function cacheElements() {
     elements.loginForm = document.getElementById('loginForm');
     elements.playerNameInput = document.getElementById('playerName');
     elements.passcodeInput = document.getElementById('passcode');
+    elements.joinGameBtn = document.getElementById('joinGameBtn');
+    elements.loginHint = document.getElementById('loginHint');
 
     // Lobby
     elements.lobbyPlayerName = document.getElementById('lobbyPlayerName');
@@ -284,15 +286,29 @@ function initializeSnow() {
 
 function loadSharedState() {
     const gameRef = doc(firestore, "game", "sharedState");
+    let isFirstLoad = true;
+
     onSnapshot(gameRef, (docSnap) => {
         if (docSnap.exists()) {
             const remoteState = docSnap.data();
             // Overwrite local state with remote state
             Object.assign(sharedState, remoteState);
         } else {
-            // No document yet, save initial state
+            // No document yet, save initial state. onSnapshot will fire again with the new doc.
             saveSharedState();
         }
+
+        // On the first successful data load, enable the form.
+        if (isFirstLoad) {
+            if (elements.joinGameBtn) {
+                elements.joinGameBtn.disabled = false;
+            }
+            if (elements.loginHint) {
+                elements.loginHint.textContent = 'Get the passcode from your host!';
+            }
+            isFirstLoad = false;
+        }
+
         syncUI();
     });
 }
@@ -406,6 +422,7 @@ async function handleLogin(e) {
 
     // Explicitly check if passcode has been set by admin
     if (!sharedState.playerPasscode) {
+        console.log(sharedState.playerPasscode)
         alert('The game has not been set up by the host yet. Please wait.');
         return;
     }
@@ -416,7 +433,7 @@ async function handleLogin(e) {
     }
 
     localState.playerName = name;
-    
+
     try {
         const gameRef = doc(firestore, "game", "sharedState");
         await runTransaction(firestore, async (transaction) => {
@@ -550,9 +567,9 @@ function checkAndEndRound() {
     if (sharedState.gamePhase === 'level1') {
         // Level 1: Timer (15s) + Box Animation (1.5s) + Result Display (2.5s) + Buffer
         roundDuration = (CONFIG.LEVEL1_ROUND_TIME * 1000) +
-                        CONFIG.BOX_OPEN_ANIMATION +
-                        CONFIG.BOX_RESULT_DISPLAY +
-                        CONFIG.ROUND_END_BUFFER;
+            CONFIG.BOX_OPEN_ANIMATION +
+            CONFIG.BOX_RESULT_DISPLAY +
+            CONFIG.ROUND_END_BUFFER;
     } else {
         // Level 2: Memory game uses round config time limit + Buffer
         const round = sharedState.currentRound || 1;
@@ -749,7 +766,7 @@ function updatePlayerLeaderboards() {
         const scoreDisplay = sharedState.gamePhase === 'level1'
             ? p.level1Score || 0
             : total;
-        
+
         const rowHtml = `
             <div class="mini-leaderboard-row ${isYou ? 'you' : ''} ${rank <= 3 ? 'top3' : ''}">
                 <span class="mini-rank">${badge}</span>
@@ -897,7 +914,7 @@ function showLevel1GameArea() {
 function showLevel1Results() {
     elements.level1RoundWaiting.style.display = 'none';
     elements.level1GameArea.style.display = 'none';
-    
+
     // Hide, clear, then show
     elements.level1RoundResults.style.display = 'none';
     elements.yourResultEmoji.textContent = '';
@@ -1133,7 +1150,7 @@ function startLevel1Timer() {
     clearInterval(roundTimer);
 
     const roundDuration = CONFIG.LEVEL1_ROUND_TIME * 1000;
-    
+
     const timerTick = () => {
         if (sharedState.isPaused) {
             clearInterval(roundTimer);
@@ -1143,7 +1160,7 @@ function startLevel1Timer() {
         const timeElapsed = Date.now() - sharedState.roundStartTime;
         const timeLeftMs = roundDuration - timeElapsed;
         const timeLeftSec = timeLeftMs / 1000;
-        
+
         updateTimerDisplay(Math.max(0, timeLeftSec), CONFIG.LEVEL1_ROUND_TIME);
 
         if (timeLeftMs <= 0) {
@@ -1200,7 +1217,7 @@ async function submitRoundResult(result) {
             }
 
             const data = gameDoc.data();
-            
+
             // Update player score
             const newPlayers = data.players.map(p => {
                 if (p.id === localState.playerId) {
@@ -1220,9 +1237,9 @@ async function submitRoundResult(result) {
                 });
             }
 
-            transaction.update(gameRef, { 
-                players: newPlayers, 
-                roundResults: newRoundResults 
+            transaction.update(gameRef, {
+                players: newPlayers,
+                roundResults: newRoundResults
             });
         });
     } catch (error) {
@@ -1749,8 +1766,8 @@ async function submitLevel2RoundResult() {
             // Update player's level 2 score and total time
             const newPlayers = data.players.map(p => {
                 if (p.id === localState.playerId) {
-                    return { 
-                        ...p, 
+                    return {
+                        ...p,
                         level2Score: localState.level2Score,
                         level2Time: localState.level2TotalTime // Store total time for tiebreaker
                     };
@@ -1770,10 +1787,10 @@ async function submitLevel2RoundResult() {
                     points: localState.roundScore
                 });
             }
-            
-            transaction.update(gameRef, { 
-                players: newPlayers, 
-                roundResults: newRoundResults 
+
+            transaction.update(gameRef, {
+                players: newPlayers,
+                roundResults: newRoundResults
             });
         });
     } catch (error) {
